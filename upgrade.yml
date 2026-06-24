@@ -1,0 +1,12 @@
+---
+- name: Update and full-upgrade apt packages
+  hosts: all
+  become: true
+  tasks:
+    - name: apt-get update
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: apt-get full-upgrade -y
+      ansible.builtin.apt:
+        upgrade: full
