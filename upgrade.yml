@@ -1,12 +1,49 @@
 ---
-- name: Update and full-upgrade apt packages
+- name: Setup automated apt update and full-upgrade
   hosts: all
   become: true
+
   tasks:
-    - name: apt-get update
+
+    # ── Initial update & upgrade on install ──────────────────────────
+    - name: Run initial apt cache update
       ansible.builtin.apt:
         update_cache: true
 
-    - name: apt-get full-upgrade -y
+    - name: Run initial full-upgrade
       ansible.builtin.apt:
         upgrade: full
+
+    # ── Deploy the update/upgrade script ─────────────────────────────
+    - name: Create /usr/local/bin/apt-full-upgrade.sh
+      ansible.builtin.copy:
+        dest: /usr/local/bin/apt-full-upgrade.sh
+        mode: "0755"
+        content: |
+          #!/bin/bash
+          # Scheduled apt update and full-upgrade
+          set -euo pipefail
+          apt-get update -q
+          DEBIAN_FRONTEND=noninteractive apt-get full-upgrade -y -q
+          apt-get autoremove -y -q
+          apt-get autoclean -q
+
+    # ── Cron job: 8:00 AM EST (13:00 UTC) ────────────────────────────
+    - name: Schedule cron job at 8:00 AM EST (13:00 UTC)
+      ansible.builtin.cron:
+        name: apt-full-upgrade-morning
+        user: root
+        minute: "0"
+        hour: "13"
+        job: /usr/local/bin/apt-full-upgrade.sh >> /var/log/apt-full-upgrade.log 2>&1
+        state: present
+
+    # ── Cron job: 5:00 PM EST (22:00 UTC) ────────────────────────────
+    - name: Schedule cron job at 5:00 PM EST (22:00 UTC)
+      ansible.builtin.cron:
+        name: apt-full-upgrade-evening
+        user: root
+        minute: "0"
+        hour: "22"
+        job: /usr/local/bin/apt-full-upgrade.sh >> /var/log/apt-full-upgrade.log 2>&1
+        state: present
